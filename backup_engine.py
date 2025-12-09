@@ -31,18 +31,48 @@ class BackupEngine:
         self.notification_manager = notification_manager
         self.stats: Optional[BackupStats] = None
 
-    def backup_directory(
-        self,
-        source: str,
-        destination: str,
-        incremental: bool = False,
-        compression: bool = False,
-        exclude_patterns: Optional[List[str]] = None
-    ) -> bool:
-        start_time = datetime.utcnow()
-        source_path = Path(source)
-        index_file = Path(destination) / "backup_index.json"
-        previous_index = {}
+   def backup_directory(
+    self,
+    source: str,
+    destination: str,
+    incremental: bool = False,
+    compression: bool = False,
+    exclude_patterns: Optional[List[str]] = None,
+    progress_callback: Optional[callable] = None
+) -> bool:
+    ...
+    files = list(source_path.rglob('*'))
+    total_files_to_process = len([f for f in files if f.is_file()])
+    processed = 0
+
+    for file_path in files:
+        if file_path.is_file():
+            rel_path = str(file_path.relative_to(source_path))
+            metadata = FileOperations.get_file_metadata(str(file_path))
+
+            # Skip unchanged files if incremental
+            if incremental and rel_path in previous_index:
+                prev_meta = previous_index[rel_path]
+                if prev_meta["checksum"] == metadata.checksum and \
+                   prev_meta["modified_time"] == metadata.modified_time:
+                    files_skipped += 1
+                    processed += 1
+                    if progress_callback:
+                        progress_callback(processed, total_files_to_process, rel_path, skipped=True)
+                    continue
+
+            # Copy file
+            dest_file = Path(destination) / rel_path
+            if FileOperations.copy_file(str(file_path), str(dest_file)):
+                total_files += 1
+                total_size += file_path.stat().st_size
+                previous_index[rel_path] = metadata.to_dict()
+            else:
+                errors += 1
+
+            processed += 1
+            if progress_callback:
+                progress_callback(processed, total_files_to_process, rel_path, skipped=False)
 
         # Load previous index if incremental
         if incremental and index_file.exists():
