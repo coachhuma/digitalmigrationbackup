@@ -209,48 +209,64 @@ class FlowerMigrationApp:
         
         self.destination_path.set("Select a folder...")
         
-    def create_actions_petals(self, parent):
-        """Create bottom petals for actions and progress"""
-        # Actions frame
-        actions_frame = tk.Frame(parent, bg=self.COLORS['cream'])
-        actions_frame.pack(fill=tk.X, pady=15)
-        
-        # Migrate button petal
-        migrate_petal = tk.Frame(actions_frame, bg=self.COLORS['deep_pink'],
-                                highlightbackground=self.COLORS['primary_orange'],
-                                highlightthickness=2)
-        migrate_petal.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
-        
-        migrate_btn = tk.Button(migrate_petal, text="🔄 Migrate Files",
-                               command=self.migrate_files,
-                               bg=self.COLORS['deep_pink'],
-                               fg='white',
-                               font=('Helvetica', 12, 'bold'),
-                               relief=tk.RAISED,
-                               padx=15, pady=15,
-                               cursor='hand2',
-                               activebackground=self.COLORS['primary_orange'])
-        migrate_btn.pack(fill=tk.BOTH, padx=5, pady=5)
-        self.migrate_btn = migrate_btn
-        
-        # Backup button petal
-        backup_petal = tk.Frame(actions_frame, bg=self.COLORS['rose_pink'],
-                               highlightbackground=self.COLORS['primary_orange'],
-                               highlightthickness=2)
-        backup_petal.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10)
-        
-        backup_btn = tk.Button(backup_petal, text="💾 Create Backup",
-                              command=self.create_backup,
-                              bg=self.COLORS['rose_pink'],
-                              fg='white',
-                              font=('Helvetica', 12, 'bold'),
-                              relief=tk.RAISED,
-                              padx=15, pady=15,
-                              cursor='hand2',
-                              activebackground=self.COLORS['accent'])
-        backup_btn.pack(fill=tk.BOTH, padx=5, pady=5)
-        self.backup_btn = backup_btn
-        
+ def create_actions_petals(self, parent):
+    """Create bottom petals for actions and progress"""
+    # Actions frame
+    actions_frame = tk.Frame(parent, bg=self.COLORS['cream'])
+    actions_frame.pack(fill=tk.X, pady=15)
+
+    # Migrate button petal
+    migrate_petal = tk.Frame(actions_frame, bg=self.COLORS['deep_pink'],
+                             highlightbackground=self.COLORS['primary_orange'],
+                             highlightthickness=2)
+    migrate_petal.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
+
+    migrate_btn = tk.Button(migrate_petal, text="🔄 Migrate Files",
+                            command=self.migrate_files,
+                            bg=self.COLORS['deep_pink'],
+                            fg='white',
+                            font=('Helvetica', 12, 'bold'),
+                            relief=tk.RAISED,
+                            padx=15, pady=15,
+                            cursor='hand2',
+                            activebackground=self.COLORS['primary_orange'])
+    migrate_btn.pack(fill=tk.BOTH, padx=5, pady=5)
+    self.migrate_btn = migrate_btn
+
+    # Backup button petal
+    backup_petal = tk.Frame(actions_frame, bg=self.COLORS['rose_pink'],
+                            highlightbackground=self.COLORS['primary_orange'],
+                            highlightthickness=2)
+    backup_petal.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10)
+
+    backup_btn = tk.Button(backup_petal, text="💾 Create Backup",
+                           command=self.create_backup,
+                           bg=self.COLORS['rose_pink'],
+                           fg='white',
+                           font=('Helvetica', 12, 'bold'),
+                           relief=tk.RAISED,
+                           padx=15, pady=15,
+                           cursor='hand2',
+                           activebackground=self.COLORS['accent'])
+    backup_btn.pack(fill=tk.BOTH, padx=5, pady=5)
+    self.backup_btn = backup_btn
+
+    # ✅ New checkboxes for backup options
+    self.incremental_var = tk.BooleanVar()
+    self.compression_var = tk.BooleanVar()
+
+    tk.Checkbutton(backup_petal, text="Incremental Backup",
+                   variable=self.incremental_var,
+                   bg=self.COLORS['rose_pink'],
+                   fg=self.COLORS['dark_text'],
+                   font=('Helvetica', 10)).pack(anchor="w", padx=10, pady=2)
+
+    tk.Checkbutton(backup_petal, text="Compress Backup",
+                   variable=self.compression_var,
+                   bg=self.COLORS['rose_pink'],
+                   fg=self.COLORS['dark_text'],
+                   font=('Helvetica', 10)).pack(anchor="w", padx=10, pady=2)
+
         # Progress section
         progress_frame = tk.Frame(parent, bg=self.COLORS['light_orange'],
                                  highlightbackground=self.COLORS['primary_orange'],
@@ -363,68 +379,70 @@ class FlowerMigrationApp:
             self.backup_btn.config(state=tk.NORMAL)
     
     def create_backup(self):
-        """Create a backup of source files"""
-        source = self.source_path.get()
-        destination = self.destination_path.get()
-        
-        if not self._validate_paths(source, destination):
-            return
-        
-        backup_name = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        backup_path = os.path.join(destination, backup_name)
-        
-        if not messagebox.askyesno("Confirm Backup",
-                                   f"Create backup at:\n{backup_path}?"):
-            return
-        
-        self.is_running = True
-        self.migrate_btn.config(state=tk.DISABLED)
-        self.backup_btn.config(state=tk.DISABLED)
-        
-        thread = threading.Thread(target=self._perform_backup,
-                                 args=(source, backup_path))
-        thread.daemon = True
-        thread.start()
-    
-    def _perform_backup(self, source, backup_path):
-        """Perform backup in separate thread"""
-        try:
-            os.makedirs(backup_path, exist_ok=True)
-            
-            files = list(Path(source).rglob('*'))
-            total_files = len([f for f in files if f.is_file()])
-            
-            if total_files == 0:
-                self.update_status("No files to backup")
-                self.is_running = False
-                self.migrate_btn.config(state=tk.NORMAL)
-                self.backup_btn.config(state=tk.NORMAL)
-                return
-            
-            backed_up = 0
-            for i, file_path in enumerate(files):
-                if file_path.is_file():
-                    rel_path = file_path.relative_to(source)
-                    dest_path = Path(backup_path) / rel_path
-                    dest_path.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(file_path, dest_path)
-                    
-                    backed_up += 1
-                    progress = (backed_up / total_files) * 100
-                    self.progress_value.set(progress)
-                    self.update_status(f"Backing up: {rel_path} ({backed_up}/{total_files})")
-            
-            self.update_status(f"✅ Backup completed! {backed_up} files backed up to {os.path.basename(backup_path)}")
+    source = self.source_path.get()
+    destination = self.destination_path.get()
+
+    if not self._validate_paths(source, destination):
+        return
+
+    backup_name = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    backup_path = os.path.join(destination, backup_name)
+
+    if not messagebox.askyesno("Confirm Backup",
+                               f"Create backup at:\n{backup_path}?"):
+        return
+
+    self.is_running = True
+    self.migrate_btn.config(state=tk.DISABLED)
+    self.backup_btn.config(state=tk.DISABLED)
+
+    # ✅ Pass checkbox values into backup thread
+    thread = threading.Thread(
+        target=self._perform_backup,
+        args=(source, backup_path, self.incremental_var.get(), self.compression_var.get())
+    )
+    thread.daemon = True
+    thread.start()
+
+    from backup_engine import BackupEngine
+from notification_system import NotificationManager
+
+def _perform_backup(self, source, backup_path, incremental=False, compression=False):
+    """Perform backup in separate thread"""
+    try:
+        os.makedirs(backup_path, exist_ok=True)
+
+        # Initialize notification + backup engine
+        notification_manager = NotificationManager()
+        engine = BackupEngine(notification_manager)
+
+        # Run backup with flags
+        success = engine.backup_directory(
+            source,
+            backup_path,
+            incremental=incremental,
+            compression=compression
+        )
+
+        if success and engine.stats:
+            stats = engine.stats
+            self.update_status(
+                f"✅ Backup completed! {stats.total_files} files, "
+                f"{BackupEngine._format_size(stats.total_size)}, "
+                f"Skipped: {stats.files_skipped}, Errors: {stats.errors}"
+            )
             self.progress_value.set(100)
-        
-        except Exception as e:
-            self.update_status(f"❌ Error: {str(e)}")
-        
-        finally:
-            self.is_running = False
-            self.migrate_btn.config(state=tk.NORMAL)
-            self.backup_btn.config(state=tk.NORMAL)
-    
+        else:
+            self.update_status("❌ Backup failed")
+
+    except Exception as e:
+        self.update_status(f"❌ Error: {str(e)}")
+
+    finally:
+        self.is_running = False
+        self.migrate_btn.config(state=tk.NORMAL)
+        self.backup_btn.config(state=tk.NORMAL)
+
     def _validate_paths(self, source, destination):
         """Validate source and destination paths"""
         if source == "Select a folder..." or not os.path.exists(source):
