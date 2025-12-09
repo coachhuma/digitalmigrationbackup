@@ -294,11 +294,14 @@ class FlowerMigrationApp:
                                            length=400, mode='determinate')
         self.progress_bar.pack(fill=tk.X, pady=10)
         
-        # Status label
-        self.status_label = tk.Label(progress_content, text="Ready to migrate or backup",
-                                    bg=self.COLORS['light_orange'],
-                                    fg=self.COLORS['dark_text'],
-                                    font=('Helvetica', 10))
+       # Status label
+        self.status_label = tk.Label(
+            progress_content,
+            text="Ready to migrate or backup",
+            bg=self.COLORS['light_orange'],
+            fg=self.COLORS['dark_text'],
+            font=('Helvetica', 11, 'bold')
+        )
         self.status_label.pack(pady=5)
         
     def browse_source(self):
