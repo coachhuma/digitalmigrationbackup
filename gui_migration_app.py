@@ -408,20 +408,27 @@ class FlowerMigrationApp:
 from notification_system import NotificationManager
 
 def _perform_backup(self, source, backup_path, incremental=False, compression=False):
-    """Perform backup in separate thread"""
+    """Perform backup in separate thread with progress updates"""
     try:
         os.makedirs(backup_path, exist_ok=True)
 
-        # Initialize notification + backup engine
         notification_manager = NotificationManager()
         engine = BackupEngine(notification_manager)
 
-        # Run backup with flags
+        # Progress callback for GUI
+        def gui_progress(processed, total, rel_path, skipped=False):
+            progress = (processed / total) * 100
+            self.progress_value.set(progress)
+            status = "Skipped" if skipped else "Backing up"
+            self.update_status(f"{status}: {rel_path} ({processed}/{total})")
+
+        # Run backup with callback
         success = engine.backup_directory(
             source,
             backup_path,
             incremental=incremental,
-            compression=compression
+            compression=compression,
+            progress_callback=gui_progress
         )
 
         if success and engine.stats:
@@ -442,7 +449,7 @@ def _perform_backup(self, source, backup_path, incremental=False, compression=Fa
         self.is_running = False
         self.migrate_btn.config(state=tk.NORMAL)
         self.backup_btn.config(state=tk.NORMAL)
-
+        
     def _validate_paths(self, source, destination):
         """Validate source and destination paths"""
         if source == "Select a folder..." or not os.path.exists(source):
